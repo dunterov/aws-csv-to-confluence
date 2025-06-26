@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "aws_csv_to_confluence"
+version = "0.1.0"
+description = ""
+authors = ["Dmitrii Unterov dunterov@gmail.com"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "aws_csv_to_confluence" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+atlassian-python-api = "^4.0.4"
+docopt = "^0.6.2"
+
+[tool.poetry.group.dev.dependencies] 
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
