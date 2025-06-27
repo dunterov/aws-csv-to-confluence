@@ -17,4 +17,5 @@ RUN poetry config virtualenvs.create false && poetry install --no-root
 COPY . .
 
 # Run the main script
-CMD ["python", "aws_csv_to_confluence/main.py"]
+ENTRYPOINT ["python", "-m", "aws_csv_to_confluence.main"]
+CMD []
