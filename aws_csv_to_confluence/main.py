@@ -8,6 +8,7 @@ Usage:
                         [--ignore-group GROUPS]
                         [--ignore-resource-type TYPES]
                         [--clean]
+                        [--dry-run]
 
 Options:
   --user USER                  Confluence user (required)
@@ -15,12 +16,11 @@ Options:
   --url URL                    Base URL, e.g. https://mycorp.atlassian.net/wiki (required)
   --parent PARENT              Confluence parent page ID (required)
   --file FILE                  Path to the CSV file to process (required)
-  --subtitle SUBTITLE          Text inserted in square brackets after '[AWS]' in the page title.
-  --ignore-group GROUPS        Comma-separated resource groups to skip (e.g ec2, s3).
-  --ignore-resource-type TYPES Comma-separated resource types to skip (e.g. snapshot, instance).
-  --clean                      After publishing, delete child pages that
-                               (a) were last edited *before* this run and
-                               (b) no longer match any current page title.
+  --subtitle SUBTITLE          Text inserted in square brackets after "[AWS]" in the page title
+  --ignore-group GROUPS        Comma-separated resource groups to skip (e.g. ec2,s3)
+  --ignore-resource-type TYPES Comma-separated resource types to skip (e.g. snapshot,instance)
+  --clean                      Delete stale child pages after publishing
+  --dry-run                    Do everything except call the Confluence REST API
 """
 from __future__ import annotations
 
@@ -74,6 +74,7 @@ def create_pages(
     ignore_groups: Collection[str],
     ignore_resource_types: Collection[str],
     confluence: Confluence,
+    dry_run: bool = False,
 ) -> Set[str]:
     """
     Publish one Confluence page per Service; return the set of titles created.
@@ -105,14 +106,18 @@ def create_pages(
             title += f"[{subtitle}] "
         title += group
 
-        confluence.update_or_create(
-            title=title,
-            body=header + "\n" + "\n".join(body_rows),
-            representation="wiki",
-            parent_id=parent_id,
-        )
+        if dry_run:
+            log.info("[DRY-RUN] Would publish page %s (%d rows)", title, len(body_rows))
+        else:
+            confluence.update_or_create(
+                title=title,
+                body=header + "\n" + "\n".join(body_rows),
+                representation="wiki",
+                parent_id=parent_id,
+            )
+            log.info("Published page %s (%d rows)", title, len(body_rows))
+
         created_titles.add(title)
-        log.info("Published page %s (%d rows)", title, len(body_rows))
 
     return created_titles
 
@@ -122,6 +127,8 @@ def clean_up(
     keep_titles: Set[str],
     run_time: datetime,
     confluence: Confluence,
+    *,
+    dry_run: bool = False,
 ) -> None:
     """
     Delete child pages whose title is *not* in keep_titles and whose last edit
@@ -138,21 +145,26 @@ def clean_up(
         if not edited_str:
             continue
         try:
-            edited_ts = datetime.fromisoformat(
-                edited_str.replace("Z", "+00:00")
-            )
+            edited_ts = datetime.fromisoformat(edited_str.replace("Z", "+00:00"))
         except ValueError:
             log.warning("Could not parse timestamp %s on page %s", edited_str, title)
             continue
 
         if edited_ts < run_time:
-            log.info("Removing stale page %s (id %s)", title, page_id)
-            confluence.remove_page(page_id=page_id)
+            if dry_run:
+                log.info("[DRY-RUN] Would remove stale page %s (id %s)", title, page_id)
+            else:
+                log.info("Removing stale page %s (id %s)", title, page_id)
+                confluence.remove_page(page_id=page_id)
 
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args: Dict[str, Any] = docopt(__doc__)
+
+    dry_run: bool = bool(args["--dry-run"])
+    if dry_run:
+        logging.info("Running in DRY-RUN mode — no changes will be pushed to Confluence")
 
     confluence = Confluence(
         url=args["--url"],
@@ -170,6 +182,7 @@ def main() -> None:
         ignore_groups=_comma_list(args.get("--ignore-group")),
         ignore_resource_types=_comma_list(args.get("--ignore-resource-type")),
         confluence=confluence,
+        dry_run=dry_run,
     )
 
     if args["--clean"]:
@@ -178,6 +191,7 @@ def main() -> None:
             keep_titles=created_titles,
             run_time=run_start,
             confluence=confluence,
+            dry_run=dry_run,
         )
 
     logging.info("Finished at %s", datetime.now(timezone.utc).isoformat())

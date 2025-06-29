@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "aws_csv_to_confluence"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = ["Dmitrii Unterov dunterov@gmail.com"]
 license = "MIT"
