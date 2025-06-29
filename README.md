@@ -1,7 +1,7 @@
 # aws-csv-to-confluence
 
 Upload an AWS resource inventory (exported as CSV from **Tag Editor**) to Confluence, one page per **Service**.
-Written in Python, packaged with **Poetry**, and shipped with an optional Docker image.
+Written in Python, packaged with [**Poetry**](https://python-poetry.org/docs/#installation), and shipped with an optional Docker image.
 
 ---
 
@@ -113,6 +113,7 @@ aws-csv-to-confluence --user USER --token TOKEN --url URL --parent PARENT --file
                         [--ignore-group GROUPS]
                         [--ignore-resource-type TYPES]
                         [--clean]
+                        [--dry-run]
 
 Options:
   --user USER                  Confluence user (required)
@@ -120,12 +121,11 @@ Options:
   --url URL                    Base URL, e.g. https://mycorp.atlassian.net/wiki (required)
   --parent PARENT              Confluence parent page ID (required)
   --file FILE                  Path to the CSV file to process (required)
-  --subtitle SUBTITLE          Text inserted in square brackets after '[AWS]' in the page title.
-  --ignore-group GROUPS        Comma-separated resource groups to skip (e.g ec2, s3).
-  --ignore-resource-type TYPES Comma-separated resource types to skip (e.g. snapshot, instance).
-  --clean                      After publishing, delete child pages that
-                               (a) were last edited *before* this run and
-                               (b) no longer match any current page title.
+  --subtitle SUBTITLE          Text inserted in square brackets after "[AWS]" in the page title
+  --ignore-group GROUPS        Comma-separated resource groups to skip (e.g. ec2,s3)
+  --ignore-resource-type TYPES Comma-separated resource types to skip (e.g. snapshot,instance)
+  --clean                      Delete stale child pages after publishing
+  --dry-run                    Do everything except call the Confluence REST API
 ```
 
 ---
@@ -138,9 +138,10 @@ Options:
 --ignore-group iam --ignore-resource-type snapshot,volume
 ```
 
-### Dry-run (no page deletion)
+### Dry-run mode (no changes made)
 
-Simply omit **`--clean`** - pages are added/updated, nothing is deleted.
+Use the `--dry-run` flag to preview what the tool *would* do without actually creating or deleting any pages in Confluence.
+This is useful for testing or verifying changes safely.
 
 ---
 

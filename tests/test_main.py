@@ -120,3 +120,35 @@ def test_clean_up(tmp_path: Path):
 
     # Page 1 (ec2) is kept, page 2 (s3) has a *future* edit so is also kept
     assert stub.pages_removed == []
+
+def test_dry_run_creates_nothing_and_removes_nothing():
+    """`--dry-run` should leave Confluence untouched."""
+    resources = {
+        "ec2": [["id-1", "R1", "instance", "us-east-1", "arn1"]],
+        "s3":  [["id-2", "R2", "bucket",   "us-east-1", "arn2"]],
+    }
+    stub = DummyConfluence()
+
+    # ----- create phase (dry‑run) -----
+    created = create_pages(
+        resources,
+        parent_id=42,
+        subtitle=None,
+        ignore_groups=set(),
+        ignore_resource_types=set(),
+        confluence=stub,
+        dry_run=True,
+    )
+
+    assert created == {"[AWS] ec2", "[AWS] s3"}   # titles are still reported
+    assert stub.pages_created == []               # but nothing was pushed
+
+    # ----- cleanup phase (dry‑run) -----
+    run_start = datetime.now(timezone.utc)
+    clean_up(
+        parent_id=999,
+        keep_titles=created,
+        run_time=run_start,
+        confluence=stub,
+        dry_run=True,
+    )
