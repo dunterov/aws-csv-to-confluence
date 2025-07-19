@@ -34,15 +34,24 @@ class DummyConfluence:
     def __init__(self):
         self.pages_created = []
         self.pages_removed = []
+        self.page_lookup = {}
         # Child pages we'll expose via get_child_id_list
         self._children = {
             "1": {
                 "title": "[AWS] ec2",
-                "version": {"when": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat().replace("+00:00", "Z")},
+                "version": {
+                    "when": (datetime.now(timezone.utc) - timedelta(days=1))
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                },
             },
             "2": {
                 "title": "[AWS] s3",
-                "version": {"when": (datetime.now(timezone.utc) + timedelta(minutes=1)).isoformat().replace("+00:00", "Z")},
+                "version": {
+                    "when": (datetime.now(timezone.utc) + timedelta(minutes=1))
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                },
             },
         }
 
@@ -59,6 +68,9 @@ class DummyConfluence:
     def remove_page(self, *, page_id):
         self.pages_removed.append(page_id)
 
+    def get_page_by_title(self, *, space, title):
+        return self.page_lookup.get((space, title))
+
 
 # --------------------------------------------------------------------------- unit tests
 
@@ -70,10 +82,10 @@ def test_comma_list_helper():
 
 def test_csv_to_service_dict(tmp_csv: Path):
     result = csv_to_service_dict(tmp_csv)
-    assert set(result) == {"ec2", "s3"}                   # two top-level keys
-    assert len(result["ec2"]) == 2                        # two rows kept together
+    assert set(result) == {"ec2", "s3"}  # two top-level keys
+    assert len(result["ec2"]) == 2  # two rows kept together
     first = result["ec2"][0]
-    assert first[:3] == ["id-111", "DB1", "instance"]     # basic mapping intact
+    assert first[:3] == ["id-111", "DB1", "instance"]  # basic mapping intact
 
 
 def test_create_pages_filtering(monkeypatch):
@@ -108,7 +120,7 @@ def test_create_pages_filtering(monkeypatch):
 
 def test_clean_up(tmp_path: Path):
     stub = DummyConfluence()
-    keep_titles = {"[AWS] ec2"}          # pretend we just recreated the ec2 page
+    keep_titles = {"[AWS] ec2"}  # pretend we just recreated the ec2 page
     run_start = datetime.now(timezone.utc)
 
     clean_up(
@@ -121,11 +133,12 @@ def test_clean_up(tmp_path: Path):
     # Page 1 (ec2) is kept, page 2 (s3) has a *future* edit so is also kept
     assert stub.pages_removed == []
 
+
 def test_dry_run_creates_nothing_and_removes_nothing():
     """`--dry-run` should leave Confluence untouched."""
     resources = {
         "ec2": [["id-1", "R1", "instance", "us-east-1", "arn1"]],
-        "s3":  [["id-2", "R2", "bucket",   "us-east-1", "arn2"]],
+        "s3": [["id-2", "R2", "bucket", "us-east-1", "arn2"]],
     }
     stub = DummyConfluence()
 
@@ -140,8 +153,8 @@ def test_dry_run_creates_nothing_and_removes_nothing():
         dry_run=True,
     )
 
-    assert created == {"[AWS] ec2", "[AWS] s3"}   # titles are still reported
-    assert stub.pages_created == []               # but nothing was pushed
+    assert created == {"[AWS] ec2", "[AWS] s3"}  # titles are still reported
+    assert stub.pages_created == []  # but nothing was pushed
 
     # ----- cleanup phase (dry‑run) -----
     run_start = datetime.now(timezone.utc)
@@ -152,3 +165,20 @@ def test_dry_run_creates_nothing_and_removes_nothing():
         confluence=stub,
         dry_run=True,
     )
+
+
+def test_parent_lookup_via_space_and_title():
+    """Ensure lookup logic works when using --parent-space and --parent-title."""
+    stub = DummyConfluence()
+    stub.page_lookup = {("DOCS", "My Parent Page"): {"id": "99999999"}}
+
+    page = stub.get_page_by_title(space="DOCS", title="My Parent Page")
+    assert page["id"] == "99999999"
+
+
+def test_parent_lookup_fails_when_missing():
+    stub = DummyConfluence()
+    stub.page_lookup = {}  # nothing returned
+
+    result = stub.get_page_by_title(space="SPACE", title="Unknown Page")
+    assert result is None

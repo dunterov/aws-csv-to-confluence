@@ -3,7 +3,8 @@
 aws-csv-to-confluence
 
 Usage:
-  aws-csv-to-confluence --user USER --token TOKEN --url URL --parent PARENT --file FILE
+  aws-csv-to-confluence --user USER --token TOKEN --url URL --file FILE
+                        (--parent PARENT | --parent-space SPACE --parent-title TITLE)
                         [--subtitle SUBTITLE]
                         [--ignore-group GROUPS]
                         [--ignore-resource-type TYPES]
@@ -14,7 +15,9 @@ Options:
   --user USER                  Confluence user (required)
   --token TOKEN                Atlassian token / password (required)
   --url URL                    Base URL, e.g. https://mycorp.atlassian.net/wiki (required)
-  --parent PARENT              Confluence parent page ID (required)
+  --parent PARENT              Confluence parent page ID (mutually exclusive with --parent-space and --parent-title)
+  --parent-space SPACE         Confluence space key (must be used with --parent-title)
+  --parent-title TITLE         Confluence parent page title (must be used with --parent-space)
   --file FILE                  Path to the CSV file to process (required)
   --subtitle SUBTITLE          Text inserted in square brackets after "[AWS]" in the page title
   --ignore-group GROUPS        Comma-separated resource groups to skip (e.g. ec2,s3)
@@ -93,8 +96,7 @@ def create_pages(
         body_rows = [
             f"|{rid}|{tag}|{rtype}|{region}|{arn}|"
             for rid, tag, rtype, region, arn in rows
-            if rtype not in ig_types
-            or log.info("Skipping %s (%s ignored)", rid, rtype)
+            if rtype not in ig_types or log.info("Skipping %s (%s ignored)", rid, rtype)
         ]
 
         if not body_rows:
@@ -164,7 +166,9 @@ def main() -> None:
 
     dry_run: bool = bool(args["--dry-run"])
     if dry_run:
-        logging.info("Running in DRY-RUN mode — no changes will be pushed to Confluence")
+        logging.info(
+            "Running in DRY-RUN mode — no changes will be pushed to Confluence"
+        )
 
     confluence = Confluence(
         url=args["--url"],
@@ -172,12 +176,35 @@ def main() -> None:
         password=args["--token"],
     )
 
+    has_parent_id = bool(args["--parent"])
+    has_space_and_title = bool(args["--parent-space"] and args["--parent-title"])
+
+    if has_parent_id and has_space_and_title:
+        raise ValueError("Cannot use --parent with --parent-space and --parent-title")
+
+    if not has_parent_id and not has_space_and_title:
+        raise ValueError(
+            "Must provide either --parent or both --parent-space and --parent-title"
+        )
+
+    if has_space_and_title:
+        parent_page = confluence.get_page_by_title(
+            space=args["--parent-space"], title=args["--parent-title"]
+        )
+        if not parent_page:
+            raise ValueError(
+                f"Parent page not found in space '{args['--parent-space']}' with title '{args['--parent-title']}'"
+            )
+        parent_id = parent_page["id"]
+    else:
+        parent_id = args["--parent"]
+
     run_start = datetime.now(timezone.utc)
 
     services = csv_to_service_dict(Path(args["--file"]))
     created_titles = create_pages(
         services,
-        parent_id=args["--parent"],
+        parent_id=parent_id,
         subtitle=args.get("--subtitle"),
         ignore_groups=_comma_list(args.get("--ignore-group")),
         ignore_resource_types=_comma_list(args.get("--ignore-resource-type")),
@@ -187,7 +214,7 @@ def main() -> None:
 
     if args["--clean"]:
         clean_up(
-            parent_id=args["--parent"],
+            parent_id=parent_id,
             keep_titles=created_titles,
             run_time=run_start,
             confluence=confluence,
