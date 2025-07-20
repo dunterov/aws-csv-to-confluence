@@ -34,6 +34,8 @@ Written in Python, packaged with [**Poetry**](https://python-poetry.org/docs/#in
 - **Minimal dependencies**
   - Uses only two exteranl libraries:
     [Atlassian Python API wrapper](https://github.com/atlassian-api/atlassian-python-api) and `docopt`
+- **Flexible parent page selection**
+  - Use either `--parent` to specify a page by ID, or use `--parent-space` and `--parent-title` together to look up the page by name (they are mutually exclusive)
 
 ---
 
@@ -108,7 +110,9 @@ poetry run aws-csv-to-confluence \
 ## Command-line reference
 
 ```text
-aws-csv-to-confluence --user USER --token TOKEN --url URL --parent PARENT --file FILE
+Usage:
+  aws-csv-to-confluence --user USER --token TOKEN --url URL --file FILE
+                        (--parent PARENT | --parent-space SPACE --parent-title TITLE)
                         [--subtitle SUBTITLE]
                         [--ignore-group GROUPS]
                         [--ignore-resource-type TYPES]
@@ -119,7 +123,9 @@ Options:
   --user USER                  Confluence user (required)
   --token TOKEN                Atlassian token / password (required)
   --url URL                    Base URL, e.g. https://mycorp.atlassian.net/wiki (required)
-  --parent PARENT              Confluence parent page ID (required)
+  --parent PARENT              Confluence parent page ID (mutually exclusive with --parent-space and --parent-title)
+  --parent-space SPACE         Confluence space key (must be used with --parent-title)
+  --parent-title TITLE         Confluence parent page title (must be used with --parent-space)
   --file FILE                  Path to the CSV file to process (required)
   --subtitle SUBTITLE          Text inserted in square brackets after "[AWS]" in the page title
   --ignore-group GROUPS        Comma-separated resource groups to skip (e.g. ec2,s3)
